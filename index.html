@@ -1388,8 +1388,9 @@ function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
   pvCur={p,ch:chKey};
   const ci=CHN.filter(c=>c.k===chKey)[0]||CHN[0], img=pvImg(p,chKey), u=prodUrl(p,chKey);
-  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · 실제 페이지 보기";
-  if(chKey&&IFRAME_OK.has(chKey)&&u){
+  const isLive=chKey&&IFRAME_OK.has(chKey)&&u;
+  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · "+(isLive?"실제 페이지 보기":"상세페이지");
+  if(isLive){
     $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
   } else {
     $("#pvBody").innerHTML=
