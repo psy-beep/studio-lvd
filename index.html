@@ -1383,14 +1383,19 @@ function pvImg(p,chKey){
   const specific=(typeof CHIMG!=="undefined"&&chKey)?CHIMG[p.no+"|"+chKey]:null;
   if(specific)return specific;
   return (typeof DETIMG!=="undefined"&&DETIMG[p.no])||"";}
+const IFRAME_OK=new Set(["자사몰","큐텐","W컨셉","헤메코","톡스토어"]);
 function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
   pvCur={p,ch:chKey};
   const ci=CHN.filter(c=>c.k===chKey)[0]||CHN[0], img=pvImg(p,chKey), u=prodUrl(p,chKey);
-  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · 상세페이지";
-  $("#pvBody").innerHTML=
-    (img?'<img src="'+img+'" alt="'+esc(p.name)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto;border-radius:8px">':
-      '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
+  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · 실제 페이지 보기";
+  if(chKey&&IFRAME_OK.has(chKey)&&u){
+    $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
+  } else {
+    $("#pvBody").innerHTML=
+      (img?'<img src="'+img+'" alt="'+esc(p.name)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto;border-radius:8px">':
+        '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
+  }
   $("#pvFoot").innerHTML=
     (u?'<a class="btn pri" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(ci.n)+'에서 열기 ↗</a>':"")+
     (img?'<a class="btn" href="'+img+'" target="_blank" rel="noopener noreferrer">원본 이미지 열기 ↗</a>':"")+
