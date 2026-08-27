@@ -1383,7 +1383,7 @@ function pvImg(p,chKey){
   const specific=(typeof CHIMG!=="undefined"&&chKey)?CHIMG[p.no+"|"+chKey]:null;
   if(specific)return specific;
   return (typeof DETIMG!=="undefined"&&DETIMG[p.no])||"";}
-const IFRAME_OK=new Set(["자사몰","큐텐","W컨셉","헤메코","톡스토어"]);
+const IFRAME_OK=new Set(["자사몰","큐텐","톡스토어"]);
 function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
   pvCur={p,ch:chKey};
