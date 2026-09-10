@@ -1384,15 +1384,36 @@ function pvImg(p,chKey){
   if(specific)return specific;
   return (typeof DETIMG!=="undefined"&&DETIMG[p.no])||"";}
 const IFRAME_OK=new Set(["자사몰","큐텐","톡스토어"]);
+// 네이버 등은 iframe 삽입을 막아놔서, 대신 로컬에서 항상 켜져있는 자동화 크롬으로
+// 실시간 스크린샷을 찍어주는 로컬 서버(preview-server.js)를 씀. 이 PC에서만 동작함.
+const LIVE_SNAPSHOT=new Set(["스마트스토어"]);
+const PREVIEW_SERVER="http://localhost:3939";
+function pvSnapshot(u){
+  const img=new Image();
+  img.src=PREVIEW_SERVER+"/preview?url="+encodeURIComponent(u)+"&_="+Date.now();
+  img.alt="실시간 미리보기";
+  img.style.cssText="width:100%;max-width:860px;height:auto;display:block;margin:0 auto;border-radius:8px";
+  img.onerror=function(){
+    $("#pvBody").innerHTML='<div class="noimg" style="width:100%;height:220px;flex-direction:column;gap:8px">'+
+      '<div>실시간 미리보기 서버에 연결할 수 없어요.</div>'+
+      '<div style="font-size:12px;opacity:.7">이 PC의 자동화 크롬 + 미리보기 서버(preview-server.js)가 켜져있어야 보여요.</div></div>';
+  };
+  $("#pvBody").innerHTML="";
+  $("#pvBody").appendChild(img);
+}
 function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
   pvCur={p,ch:chKey};
   const ci=CHN.filter(c=>c.k===chKey)[0]||CHN[0], img=pvImg(p,chKey), u=prodUrl(p,chKey);
   const imgList=Array.isArray(img)?img.filter(Boolean):(img?[img]:[]);
   const isLive=chKey&&IFRAME_OK.has(chKey)&&u;
-  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · "+(isLive?"실제 페이지 보기":"상세페이지");
+  const isSnapshot=chKey&&LIVE_SNAPSHOT.has(chKey)&&u;
+  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · "+(isLive?"실제 페이지 보기":isSnapshot?"실시간 미리보기":"상세페이지");
   if(isLive){
     $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
+  } else if(isSnapshot){
+    $("#pvBody").innerHTML='<div class="noimg" style="width:100%;height:220px">불러오는 중…</div>';
+    pvSnapshot(u);
   } else {
     $("#pvBody").innerHTML=
       (imgList.length?imgList.map(function(u2){return '<img src="'+u2+'" alt="'+esc(p.name)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto;border-radius:8px">';}).join(""):
@@ -1400,6 +1421,7 @@ function pvOpen(no,chKey){
   }
   $("#pvFoot").innerHTML=
     (u?'<a class="btn pri" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(ci.n)+'에서 열기 ↗</a>':"")+
+    (isSnapshot?'<button class="btn" data-pvrefresh="1">새로고침 ↻</button>':"")+
     (imgList.length?'<a class="btn" href="'+imgList[0]+'" target="_blank" rel="noopener noreferrer">원본 이미지 열기 ↗</a>':"")+
     '<button class="btn ghost" data-pvcopy="1">상품코드 복사</button>';
   $("#pvPanel").classList.add("on");
@@ -1419,6 +1441,10 @@ $("#pvBody").addEventListener("change",e=>{
   save();pvOpen(p.no,pvCur?pvCur.ch:k);renderT1();renderKpi1();
   toast(CHN.filter(x=>x.k===k)[0].n+(c.checked?" 확인 완료":" 확인 해제"));});
 $("#pvFoot").addEventListener("click",e=>{
+  if(e.target.closest("[data-pvrefresh]")&&pvCur){
+    $("#pvBody").innerHTML='<div class="noimg" style="width:100%;height:220px">불러오는 중…</div>';
+    pvSnapshot(prodUrl(pvCur.p,pvCur.ch));
+    return;}
   if(!e.target.closest("[data-pvcopy]")||!pvCur)return;
   const cell=pvCur.p.ch[pvCur.ch],v=cell.lid||cell.id||"";
   copyText(v,"상품코드 "+v);});
