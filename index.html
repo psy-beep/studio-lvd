@@ -1408,16 +1408,11 @@ function renderInfoCardBody(lvName,lvPrice,lvFreeShip,lvImgs,statusNote){
     (lvImgs.length?lvImgs.map(function(u2){return '<img src="'+u2+'" alt="'+esc(lvName)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:860px;height:120px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패 (링크가 깨졌거나 비공개 파일)</div>\'">';}).join(""):
       '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
 }
-// OG 카드용: 상세페이지 전체가 아니라 상품 썸네일 하나 + 이름/가격만 보여줍니다(OG 태그가 그게 전부라서).
-function renderOgCardBody(chLabel,lvName,lvPrice,lvImg,statusNote){
-  return '<div style="text-align:center;margin-bottom:16px;padding:18px 16px;background:#fff;border:1px solid var(--line-soft);border-radius:10px">'+
-    (statusNote?'<div style="font-size:12px;opacity:.7;margin-bottom:6px">'+statusNote+'</div>':'')+
-    '<div style="font-size:13px;color:#767676;margin-bottom:4px">'+esc(chLabel)+'</div>'+
-    '<h3 style="margin:4px 0;font-size:16px">'+esc(lvName)+'</h3>'+
-    (lvPrice?'<p style="color:#222;font-weight:800;font-size:26px;margin:8px 0 4px">'+won(lvPrice)+'<span style="font-size:16px;font-weight:600">원</span></p>':'')+
-    '</div>'+
-    (lvImg?'<img src="'+lvImg+'" alt="'+esc(lvName)+' 썸네일" style="width:100%;max-width:420px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:420px;height:220px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패</div>\'">':
-      '<div class="noimg" style="width:100%;height:220px">이미지 없음</div>');
+// 모바일 카드용: 앱에서 상품상세페이지를 스크롤해서 보듯이, 실제 화면을 여러 장 찍어 이어붙여 보여줍니다.
+function renderMobileShots(images){
+  return '<div style="max-width:390px;margin:0 auto;border:8px solid #111;border-radius:28px;overflow:hidden;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15)">'+
+    images.map(function(b64){return '<img src="data:image/jpeg;base64,'+b64+'" style="width:100%;display:block">';}).join("")+
+    '</div>';
 }
 function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
@@ -1431,25 +1426,24 @@ function pvOpen(no,chKey){
   if(isLive){
     $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
   } else if(isOgCard){
-    // 패널을 열 때마다 로컬 서버(preview-server.js)가 상품 페이지의 Open Graph 태그를 그 자리에서
-    // 읽어옵니다(저장된 데이터 아님). 서버가 꺼져있거나 실패하면 등록된 이름/가격/이미지로 대체합니다.
-    $("#pvBody").innerHTML=renderOgCardBody(ci.n,p.abbr||p.name,p.std,imgList[0]||"","⏳ 실시간으로 불러오는 중…");
+    // API가 없는 채널이라, 실제 자동화 크롬으로 모바일 화면 크기로 상품페이지를 열어
+    // 앱에서 스크롤해서 보듯 화면 여러 장을 그 자리에서 찍어옵니다(저장된 스크린샷 아님).
+    $("#pvBody").innerHTML='<div id="pvShotNote" style="text-align:center;font-size:12px;opacity:.7;margin-bottom:8px">⏳ '+esc(ci.n)+' 모바일 화면 불러오는 중… (10~20초 걸려요)</div>';
     const myReqId=(pvCur.reqId=(pvCur.reqId||0)+1);
     const ctrl=new AbortController();
-    const timer=setTimeout(()=>ctrl.abort(),8000);
-    fetch(LIVE_API_SERVER+"/og-preview?url="+encodeURIComponent(u),{signal:ctrl.signal})
-      .then(function(r){return r.ok?r.json():Promise.reject(new Error("HTTP "+r.status));})
+    const timer=setTimeout(()=>ctrl.abort(),45000);
+    fetch(LIVE_API_SERVER+"/mobile-preview?url="+encodeURIComponent(u),{signal:ctrl.signal})
+      .then(function(r){return r.json().then(function(j){return r.ok?j:Promise.reject(new Error(j.error||("HTTP "+r.status)));});})
       .then(function(live){
         clearTimeout(timer);
         if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return;
-        $("#pvBody").innerHTML=renderOgCardBody(ci.n,live.title||(p.abbr||p.name),live.price||p.std,live.image||imgList[0]||"","🟢 방금 "+ci.n+"에서 실시간으로 불러왔어요");
+        $("#pvBody").innerHTML='<div style="text-align:center;font-size:12px;opacity:.7;margin-bottom:8px">🟢 방금 '+esc(ci.n)+'에서 실시간으로 불러왔어요</div>'+renderMobileShots(live.images||[]);
       })
       .catch(function(err){
         clearTimeout(timer);
         if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return;
-        const note='⚠ 실시간 조회 실패 ('+(err.name==="AbortError"?"응답 지연":err.message)+') — 등록된 정보로 보여드려요'+
-          '<br><span style="font-size:11px">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 실시간 조회가 돼요.</span>';
-        $("#pvBody").innerHTML=renderOgCardBody(ci.n,p.abbr||p.name,p.std,imgList[0]||"",note);
+        $("#pvBody").innerHTML='<div style="text-align:center;padding:24px 16px;color:var(--rose)">⚠ 실시간 미리보기 실패 ('+(err.name==="AbortError"?"응답 지연":esc(err.message))+')'+
+          '<br><span style="font-size:11px;opacity:.8">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.</span></div>';
       });
   } else if(isInfoCard){
     // 구매/이동 목적이 아니라, 상품명·가격·상세 이미지가 제대로 올라갔는지 한눈에 확인하기 위한 용도.
