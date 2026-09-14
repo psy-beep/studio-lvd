@@ -1434,7 +1434,7 @@ function pvOpen(no,chKey){
       '</div>'+
       '<div style="text-align:center;font-size:11px;opacity:.6;margin-top:6px">화면 위에서 마우스 휠로 스크롤해보세요</div>';
     const imgEl=$("#pvStreamImg"), noteEl=$("#pvStreamNote");
-    let curObjUrl=null,pollTimer=null,gotFirstFrame=false,failCount=0;
+    let curObjUrl=null,pollTimer=null,gotFirstFrame=false,failCount=0,reconnects=0;
     function stopPolling(){if(pollTimer){clearTimeout(pollTimer);pollTimer=null;}}
     function pollFrame(){
       if(!pvCur||pvCur.streamSid!==sid)return; // 그 사이 패널을 닫았거나 다른 상품을 열었으면 중단
@@ -1458,22 +1458,32 @@ function pvOpen(no,chKey){
             noteEl.innerHTML="⚠ 실시간 화면 연결 실패 — 이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.";
             stopPolling();return;
           }
+          // 한 번 화면을 잘 받다가 갑자기 못 받기 시작하면(자동화 탭이 백그라운드에서 정리됐을 때 등)
+          // 몇 번 재시도해보고, 계속 안 되면 아예 다시 연결합니다.
+          if(gotFirstFrame&&failCount>=4&&reconnects<5){
+            failCount=0;reconnects++;stopPolling();
+            noteEl.textContent="🔄 연결이 끊겨서 다시 붙는 중…";
+            startStream();return;
+          }
         })
         .finally(function(){
           if(pvCur&&pvCur.streamSid===sid)pollTimer=setTimeout(pollFrame,800);
         });
     }
-    const startCtrl=new AbortController();
-    const startTimer=setTimeout(()=>startCtrl.abort(),30000);
-    fetch(LIVE_API_SERVER+"/mobile-stream?url="+encodeURIComponent(u)+"&sid="+sid,{signal:startCtrl.signal})
-      .then(function(r){clearTimeout(startTimer);return r.json().then(function(j){return r.ok?j:Promise.reject(new Error(j.error||("HTTP "+r.status)));});})
-      .then(function(){if(pvCur&&pvCur.streamSid===sid)pollFrame();})
-      .catch(function(err){
-        clearTimeout(startTimer);
-        if(!pvCur||pvCur.streamSid!==sid)return;
-        noteEl.innerHTML="⚠ 실시간 화면 연결 실패 ("+(err.name==="AbortError"?"응답 지연":esc(err.message))+")"+
-          "<br><span style=\"font-size:11px\">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.</span>";
-      });
+    function startStream(){
+      const startCtrl=new AbortController();
+      const startTimer=setTimeout(()=>startCtrl.abort(),30000);
+      fetch(LIVE_API_SERVER+"/mobile-stream?url="+encodeURIComponent(u)+"&sid="+sid,{signal:startCtrl.signal})
+        .then(function(r){clearTimeout(startTimer);return r.json().then(function(j){return r.ok?j:Promise.reject(new Error(j.error||("HTTP "+r.status)));});})
+        .then(function(){if(pvCur&&pvCur.streamSid===sid)pollFrame();})
+        .catch(function(err){
+          clearTimeout(startTimer);
+          if(!pvCur||pvCur.streamSid!==sid)return;
+          noteEl.innerHTML="⚠ 실시간 화면 연결 실패 ("+(err.name==="AbortError"?"응답 지연":esc(err.message))+")"+
+            "<br><span style=\"font-size:11px\">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.</span>";
+        });
+    }
+    startStream();
     let pendingDelta=0,sending=false;
     function flushScroll(){
       if(pendingDelta===0||sending||pvCur.streamSid!==sid)return;
