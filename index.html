@@ -1387,7 +1387,7 @@ const IFRAME_OK=new Set(["자사몰","큐텐","톡스토어"]);
 // 네이버 등은 iframe 삽입을 막아놔서, 대신 로컬에서 항상 켜져있는 자동화 크롬으로
 // 실시간 스크린샷을 찍어주는 로컬 서버(preview-server.js)를 씀. 이 PC에서만 동작함.
 const LIVE_SNAPSHOT=new Set(["스스"]);
-const PREVIEW_SERVER="http://localhost:3939";
+const PREVIEW_SERVER="https://localhost:3939";
 function pvSnapshot(u){
   const img=new Image();
   img.src=PREVIEW_SERVER+"/preview?url="+encodeURIComponent(u)+"&_="+Date.now();
@@ -1396,7 +1396,8 @@ function pvSnapshot(u){
   img.onerror=function(){
     $("#pvBody").innerHTML='<div class="noimg" style="width:100%;height:220px;flex-direction:column;gap:8px">'+
       '<div>실시간 미리보기 서버에 연결할 수 없어요.</div>'+
-      '<div style="font-size:12px;opacity:.7">이 PC의 자동화 크롬 + 미리보기 서버(preview-server.js)가 켜져있어야 보여요.</div></div>';
+      '<div style="font-size:12px;opacity:.7">이 PC의 자동화 크롬 + 미리보기 서버(preview-server.js)가 켜져있어야 보여요.<br>'+
+      '이 브라우저에서 <a href="https://localhost:3939" target="_blank" rel="noopener">https://localhost:3939</a> 를 한 번 열어 보안 경고를 넘겨서(자체서명 인증서) 신뢰해줘야 해요.</div></div>';
   };
   $("#pvBody").innerHTML="";
   $("#pvBody").appendChild(img);
