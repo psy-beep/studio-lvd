@@ -1407,12 +1407,16 @@ function pvOpen(no,chKey){
     const live=(typeof SMARTSTORE_LIVE!=="undefined")?SMARTSTORE_LIVE[p.no]:null;
     const lvName=live?live.name:(p.abbr||p.name);
     const lvPrice=live?live.price:p.std;
+    const lvFreeShip=live?live.freeShipping:null;
     const lvImgs=live&&live.images&&live.images.length?live.images:imgList;
+    // 네이버 스마트스토어 상품 페이지의 가격 영역(검정 굵은 가격 + 무료배송 뱃지)과 비슷한 느낌으로.
     $("#pvBody").innerHTML=
-      '<div style="text-align:center;margin-bottom:16px">'+
+      '<div style="text-align:center;margin-bottom:16px;padding:18px 16px;background:#fff;border:1px solid var(--line-soft);border-radius:10px">'+
       (live?'':'<div style="font-size:12px;opacity:.6;margin-bottom:6px">⚠ 아직 스마트스토어 실시간 동기화 전 — 저장된 정보입니다</div>')+
-      '<h3 style="margin:8px 0">'+esc(lvName)+'</h3>'+
-      (lvPrice?'<p style="color:var(--rose);font-weight:bold;font-size:18px">'+won(lvPrice)+'원</p>':'')+
+      '<div style="font-size:13px;color:#767676;margin-bottom:4px">NAVER 스마트스토어</div>'+
+      '<h3 style="margin:4px 0;font-size:16px">'+esc(lvName)+'</h3>'+
+      (lvPrice?'<p style="color:#222;font-weight:800;font-size:26px;margin:8px 0 4px">'+won(lvPrice)+'<span style="font-size:16px;font-weight:600">원</span></p>':'')+
+      (lvFreeShip?'<span style="display:inline-block;margin-top:2px;padding:3px 9px;font-size:12px;font-weight:600;color:#03c75a;border:1px solid #03c75a;border-radius:20px">무료배송</span>':'')+
       '</div>'+
       (lvImgs.length?lvImgs.map(function(u2){return '<img src="'+u2+'" alt="'+esc(lvName)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:860px;height:120px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패 (링크가 깨졌거나 비공개 파일)</div>\'">';}).join(""):
         '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
