@@ -1390,6 +1390,19 @@ const IFRAME_OK=new Set(["자사몰","큐텐","톡스토어"]);
 // 크롬 브라우저 보안정책(사설망 접근 제한)이 계속 바뀌면서 자꾸 깨져서, 대신 상품명·가격·
 // 썸네일을 깔끔한 카드로 보여주고 "~에서 보기" 버튼으로 새 창 연결하는 방식을 씁니다.
 const INFO_CARD=new Set(["스스"]);
+const LIVE_API_SERVER="https://localhost:3939";
+// 패널 안에 상품 정보 카드를 그립니다. statusNote는 상단에 표시할 안내 문구(로딩중/실시간/동기화본 등).
+function renderInfoCardBody(lvName,lvPrice,lvFreeShip,lvImgs,statusNote){
+  return '<div style="text-align:center;margin-bottom:16px;padding:18px 16px;background:#fff;border:1px solid var(--line-soft);border-radius:10px">'+
+    (statusNote?'<div style="font-size:12px;opacity:.7;margin-bottom:6px">'+statusNote+'</div>':'')+
+    '<div style="font-size:13px;color:#767676;margin-bottom:4px">NAVER 스마트스토어</div>'+
+    '<h3 style="margin:4px 0;font-size:16px">'+esc(lvName)+'</h3>'+
+    (lvPrice?'<p style="color:#222;font-weight:800;font-size:26px;margin:8px 0 4px">'+won(lvPrice)+'<span style="font-size:16px;font-weight:600">원</span></p>':'')+
+    (lvFreeShip?'<span style="display:inline-block;margin-top:2px;padding:3px 9px;font-size:12px;font-weight:600;color:#03c75a;border:1px solid #03c75a;border-radius:20px">무료배송</span>':'')+
+    '</div>'+
+    (lvImgs.length?lvImgs.map(function(u2){return '<img src="'+u2+'" alt="'+esc(lvName)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:860px;height:120px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패 (링크가 깨졌거나 비공개 파일)</div>\'">';}).join(""):
+      '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
+}
 function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
   pvCur={p,ch:chKey};
@@ -1402,24 +1415,38 @@ function pvOpen(no,chKey){
     $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
   } else if(isInfoCard){
     // 구매/이동 목적이 아니라, 상품명·가격·상세 이미지가 제대로 올라갔는지 한눈에 확인하기 위한 용도.
-    // 네이버 커머스 API로 미리 동기화해둔 실제 데이터(smartstore-live-data.js)가 있으면 그걸 쓰고,
-    // 아직 동기화 안 된 상품이면 저장된 대표 이미지로라도 보여줍니다.
-    const live=(typeof SMARTSTORE_LIVE!=="undefined")?SMARTSTORE_LIVE[p.no]:null;
-    const lvName=live?live.name:(p.abbr||p.name);
-    const lvPrice=live?live.price:p.std;
-    const lvFreeShip=live?live.freeShipping:null;
-    const lvImgs=live&&live.images&&live.images.length?live.images:imgList;
-    // 네이버 스마트스토어 상품 페이지의 가격 영역(검정 굵은 가격 + 무료배송 뱃지)과 비슷한 느낌으로.
-    $("#pvBody").innerHTML=
-      '<div style="text-align:center;margin-bottom:16px;padding:18px 16px;background:#fff;border:1px solid var(--line-soft);border-radius:10px">'+
-      (live?'':'<div style="font-size:12px;opacity:.6;margin-bottom:6px">⚠ 아직 스마트스토어 실시간 동기화 전 — 저장된 정보입니다</div>')+
-      '<div style="font-size:13px;color:#767676;margin-bottom:4px">NAVER 스마트스토어</div>'+
-      '<h3 style="margin:4px 0;font-size:16px">'+esc(lvName)+'</h3>'+
-      (lvPrice?'<p style="color:#222;font-weight:800;font-size:26px;margin:8px 0 4px">'+won(lvPrice)+'<span style="font-size:16px;font-weight:600">원</span></p>':'')+
-      (lvFreeShip?'<span style="display:inline-block;margin-top:2px;padding:3px 9px;font-size:12px;font-weight:600;color:#03c75a;border:1px solid #03c75a;border-radius:20px">무료배송</span>':'')+
-      '</div>'+
-      (lvImgs.length?lvImgs.map(function(u2){return '<img src="'+u2+'" alt="'+esc(lvName)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:860px;height:120px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패 (링크가 깨졌거나 비공개 파일)</div>\'">';}).join(""):
-        '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
+    // 패널을 열 때마다 로컬 서버(preview-server.js)를 통해 그 자리에서 네이버 API를 호출합니다
+    // (저장된 데이터가 아니라 진짜 실시간). 로컬 서버가 꺼져있을 때만 마지막 동기화본으로 대체합니다.
+    const synced=(typeof SMARTSTORE_LIVE!=="undefined")?SMARTSTORE_LIVE[p.no]:null;
+    const channelProductNo=p.ch&&p.ch[chKey]&&p.ch[chKey].lid;
+    $("#pvBody").innerHTML=renderInfoCardBody(
+      synced?synced.name:(p.abbr||p.name), synced?synced.price:p.std, synced?synced.freeShipping:null,
+      synced&&synced.images&&synced.images.length?synced.images:imgList,
+      "⏳ 실시간으로 다시 불러오는 중…"
+    );
+    if(channelProductNo){
+      const myReqId=(pvCur.reqId=(pvCur.reqId||0)+1);
+      const ctrl=new AbortController();
+      const timer=setTimeout(()=>ctrl.abort(),8000);
+      fetch(LIVE_API_SERVER+"/smartstore-product?id="+encodeURIComponent(channelProductNo),{signal:ctrl.signal})
+        .then(function(r){return r.ok?r.json():Promise.reject(new Error("HTTP "+r.status));})
+        .then(function(live){
+          clearTimeout(timer);
+          if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return; // 그 사이 패널을 닫았거나 다른 상품을 열었으면 무시
+          $("#pvBody").innerHTML=renderInfoCardBody(live.name,live.price,live.freeShipping,live.images||[],"🟢 방금 네이버에서 실시간으로 불러왔어요");
+        })
+        .catch(function(err){
+          clearTimeout(timer);
+          if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return;
+          const note='⚠ 실시간 조회 실패 ('+(err.name==="AbortError"?"응답 지연":err.message)+') — '+
+            (synced?'마지막 동기화본을 보여드려요':'동기화된 정보도 없어요')+
+            '<br><span style="font-size:11px">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 실시간 조회가 돼요.</span>';
+          $("#pvBody").innerHTML=renderInfoCardBody(
+            synced?synced.name:(p.abbr||p.name), synced?synced.price:p.std, synced?synced.freeShipping:null,
+            synced&&synced.images&&synced.images.length?synced.images:imgList, note
+          );
+        });
+    }
   } else {
     $("#pvBody").innerHTML=
       (imgList.length?imgList.map(function(u2){return '<img src="'+u2+'" alt="'+esc(p.name)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto;border-radius:8px">';}).join(""):
