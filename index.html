@@ -1420,30 +1420,69 @@ function pvOpen(no,chKey){
     $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
   } else if(isStreamCard){
     // API도 없고 iframe도 막혀있는 채널이라, 실제 자동화 크롬 탭에서 페이지를 그대로 열어두고
-    // (iframe이 아니라 진짜 탭이라 "프레임 감지되면 막기" 로직에 안 걸림) 화면을 계속 캡처해서
-    // 실시간 영상처럼 흘려보냅니다. 패널 위에서 휠 스크롤하면 그 스크롤도 실제 탭에 그대로 전달돼서
-    // 진짜 그 페이지를 보고 있는 것처럼 움직입니다.
+    // (iframe이 아니라 진짜 탭이라 "프레임 감지되면 막기" 로직에 안 걸림) 화면을 계속 캡처합니다.
+    // <img src="https://localhost:3939/...">로 바로 물리면 크롬이 사설망(localhost) 주소로 가는
+    // <img> 요청을 조용히 막아버려서(Private Network Access - fetch()는 막지 않음), 대신 fetch()로
+    // 최신 화면을 주기적으로 가져와 <img>에 갈아끼우는 방식을 씁니다. 패널 위에서 휠 스크롤하면
+    // 그 스크롤도 실제 탭에 그대로 전달돼서 진짜 그 페이지를 보고 있는 것처럼 움직입니다.
     const sid=Math.random().toString(36).slice(2);
     pvCur.streamSid=sid;
-    const streamUrl=LIVE_API_SERVER+"/mobile-stream?url="+encodeURIComponent(u)+"&sid="+sid;
     $("#pvBody").innerHTML=
       '<div id="pvStreamNote" style="text-align:center;font-size:12px;opacity:.7;margin-bottom:8px">⏳ '+esc(ci.n)+' 실시간 화면 연결 중… (몇 초 걸려요)</div>'+
       '<div style="max-width:390px;margin:0 auto;border:8px solid #111;border-radius:28px;overflow:hidden;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15)">'+
-      '<img id="pvStreamImg" src="'+streamUrl+'" style="width:100%;display:block;min-height:300px" alt="'+esc(ci.n)+' 실시간 화면">'+
+      '<img id="pvStreamImg" style="width:100%;display:block;min-height:300px" alt="'+esc(ci.n)+' 실시간 화면">'+
       '</div>'+
       '<div style="text-align:center;font-size:11px;opacity:.6;margin-top:6px">화면 위에서 마우스 휠로 스크롤해보세요</div>';
     const imgEl=$("#pvStreamImg"), noteEl=$("#pvStreamNote");
-    imgEl.addEventListener("load",function(){noteEl.textContent="🟢 "+ci.n+" 실시간 화면 (휠로 스크롤 가능)";},{once:true});
-    imgEl.addEventListener("error",function(){
-      noteEl.innerHTML="⚠ 실시간 화면 연결 실패 — 이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.";
-    });
+    let curObjUrl=null,pollTimer=null,gotFirstFrame=false,failCount=0;
+    function stopPolling(){if(pollTimer){clearTimeout(pollTimer);pollTimer=null;}}
+    function pollFrame(){
+      if(!pvCur||pvCur.streamSid!==sid)return; // 그 사이 패널을 닫았거나 다른 상품을 열었으면 중단
+      const ctrl=new AbortController();
+      const timer=setTimeout(()=>ctrl.abort(),6000);
+      fetch(LIVE_API_SERVER+"/mobile-stream-frame?sid="+sid,{signal:ctrl.signal})
+        .then(function(r){clearTimeout(timer);return r.ok?r.blob():Promise.reject(new Error("HTTP "+r.status));})
+        .then(function(blob){
+          if(!pvCur||pvCur.streamSid!==sid)return;
+          failCount=0;
+          const url=URL.createObjectURL(blob);
+          const old=curObjUrl;curObjUrl=url;imgEl.src=url;
+          if(old)URL.revokeObjectURL(old);
+          if(!gotFirstFrame){gotFirstFrame=true;noteEl.textContent="🟢 "+ci.n+" 실시간 화면 (휠로 스크롤 가능)";}
+        })
+        .catch(function(){
+          clearTimeout(timer);
+          if(!pvCur||pvCur.streamSid!==sid)return;
+          failCount++;
+          if(!gotFirstFrame&&failCount>8){ // 첫 프레임을 8번(약 8초) 넘게 못 받으면 실패로 판단
+            noteEl.innerHTML="⚠ 실시간 화면 연결 실패 — 이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.";
+            stopPolling();return;
+          }
+        })
+        .finally(function(){
+          if(pvCur&&pvCur.streamSid===sid)pollTimer=setTimeout(pollFrame,800);
+        });
+    }
+    const startCtrl=new AbortController();
+    const startTimer=setTimeout(()=>startCtrl.abort(),30000);
+    fetch(LIVE_API_SERVER+"/mobile-stream?url="+encodeURIComponent(u)+"&sid="+sid,{signal:startCtrl.signal})
+      .then(function(r){clearTimeout(startTimer);return r.json().then(function(j){return r.ok?j:Promise.reject(new Error(j.error||("HTTP "+r.status)));});})
+      .then(function(){if(pvCur&&pvCur.streamSid===sid)pollFrame();})
+      .catch(function(err){
+        clearTimeout(startTimer);
+        if(!pvCur||pvCur.streamSid!==sid)return;
+        noteEl.innerHTML="⚠ 실시간 화면 연결 실패 ("+(err.name==="AbortError"?"응답 지연":esc(err.message))+")"+
+          "<br><span style=\"font-size:11px\">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 해요.</span>";
+      });
     let pendingDelta=0,sending=false;
     function flushScroll(){
       if(pendingDelta===0||sending||pvCur.streamSid!==sid)return;
       const d=pendingDelta;pendingDelta=0;sending=true;
-      fetch(LIVE_API_SERVER+"/mobile-stream-scroll?sid="+sid+"&deltaY="+Math.round(d))
+      const ctrl=new AbortController();
+      const timer=setTimeout(()=>ctrl.abort(),4000);
+      fetch(LIVE_API_SERVER+"/mobile-stream-scroll?sid="+sid+"&deltaY="+Math.round(d),{signal:ctrl.signal})
         .catch(function(){})
-        .finally(function(){sending=false;flushScroll();});
+        .finally(function(){clearTimeout(timer);sending=false;flushScroll();});
     }
     imgEl.addEventListener("wheel",function(e){
       e.preventDefault();
@@ -1498,8 +1537,10 @@ function pvOpen(no,chKey){
   $("#pvPanel").setAttribute("aria-hidden","false");
   $("#pvScrim").hidden=false;}
 function pvClose(){$("#pvPanel").classList.remove("on");
-  $("#pvPanel").setAttribute("aria-hidden","true");$("#pvScrim").hidden=true;pvCur=null;
-  $("#pvBody").innerHTML="";} // 실시간 스트림 <img>가 있었다면 여기서 연결이 끊기며 서버 쪽 탭도 정리됨
+  $("#pvPanel").setAttribute("aria-hidden","true");$("#pvScrim").hidden=true;
+  if(pvCur&&pvCur.streamSid)fetch(LIVE_API_SERVER+"/mobile-stream-stop?sid="+pvCur.streamSid).catch(function(){});
+  pvCur=null;
+  $("#pvBody").innerHTML="";}
 $("#pvClose").addEventListener("click",pvClose);
 $("#pvScrim").addEventListener("click",pvClose);
 $("#pvBody").addEventListener("click",e=>{
