@@ -1404,7 +1404,7 @@ function pvOpen(no,chKey){
       (imgList.length?'<img src="'+imgList[0]+'" alt="'+esc(p.name)+'" style="width:100%;height:240px;object-fit:cover;border-radius:8px;margin-bottom:12px">':
         '<div class="noimg" style="width:100%;height:240px;border-radius:8px;margin-bottom:12px">이미지 없음</div>')+
       '<h3 style="margin:8px 0">'+esc(p.abbr||p.name)+(p.abbr&&p.name&&p.abbr!==p.name?' <span style="font-weight:400;opacity:.7">'+esc(p.name)+'</span>':'')+'</h3>'+
-      (p.std?'<p style="color:var(--rose);font-weight:bold;font-size:18px">'+won(p.std)+'</p>':'')+
+      (p.std?'<p style="color:var(--rose);font-weight:bold;font-size:18px">'+won(p.std)+'원</p>':'')+
       '</div>';
   } else {
     $("#pvBody").innerHTML=
