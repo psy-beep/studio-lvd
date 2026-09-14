@@ -1390,6 +1390,11 @@ const IFRAME_OK=new Set(["자사몰","큐텐","톡스토어"]);
 // 크롬 브라우저 보안정책(사설망 접근 제한)이 계속 바뀌면서 자꾸 깨져서, 대신 상품명·가격·
 // 썸네일을 깔끔한 카드로 보여주고 "~에서 보기" 버튼으로 새 창 연결하는 방식을 씁니다.
 const INFO_CARD=new Set(["스스"]);
+// API가 없는 채널들은 상품 페이지의 Open Graph 메타태그(og:title/og:image 등, 카카오톡·페이스북
+// 공유카드용으로 대부분 사이트에 있음)를 서버(preview-server.js)에서 읽어와 실시간으로 보여줍니다.
+// iframe 삽입이 막혀있어도 문제없이 되고(그냥 HTML을 읽는 것뿐), 구매 목적이 아니라 상품명·가격·
+// 썸네일이 제대로 올라갔는지 확인용입니다.
+const OG_CARD=new Set(["지마켓","11번가","W컨셉","직잭","에이블리","무신사"]);
 const LIVE_API_SERVER="https://localhost:3939";
 // 패널 안에 상품 정보 카드를 그립니다. statusNote는 상단에 표시할 안내 문구(로딩중/실시간/동기화본 등).
 function renderInfoCardBody(lvName,lvPrice,lvFreeShip,lvImgs,statusNote){
@@ -1403,6 +1408,17 @@ function renderInfoCardBody(lvName,lvPrice,lvFreeShip,lvImgs,statusNote){
     (lvImgs.length?lvImgs.map(function(u2){return '<img src="'+u2+'" alt="'+esc(lvName)+' 상세페이지" style="width:100%;max-width:860px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:860px;height:120px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패 (링크가 깨졌거나 비공개 파일)</div>\'">';}).join(""):
       '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
 }
+// OG 카드용: 상세페이지 전체가 아니라 상품 썸네일 하나 + 이름/가격만 보여줍니다(OG 태그가 그게 전부라서).
+function renderOgCardBody(chLabel,lvName,lvPrice,lvImg,statusNote){
+  return '<div style="text-align:center;margin-bottom:16px;padding:18px 16px;background:#fff;border:1px solid var(--line-soft);border-radius:10px">'+
+    (statusNote?'<div style="font-size:12px;opacity:.7;margin-bottom:6px">'+statusNote+'</div>':'')+
+    '<div style="font-size:13px;color:#767676;margin-bottom:4px">'+esc(chLabel)+'</div>'+
+    '<h3 style="margin:4px 0;font-size:16px">'+esc(lvName)+'</h3>'+
+    (lvPrice?'<p style="color:#222;font-weight:800;font-size:26px;margin:8px 0 4px">'+won(lvPrice)+'<span style="font-size:16px;font-weight:600">원</span></p>':'')+
+    '</div>'+
+    (lvImg?'<img src="'+lvImg+'" alt="'+esc(lvName)+' 썸네일" style="width:100%;max-width:420px;height:auto;display:block;margin:0 auto 10px;border-radius:8px" onerror="this.outerHTML=\'<div class=&quot;noimg&quot; style=&quot;width:100%;max-width:420px;height:220px;margin:0 auto 10px;color:var(--rose)&quot;>⚠ 이미지 불러오기 실패</div>\'">':
+      '<div class="noimg" style="width:100%;height:220px">이미지 없음</div>');
+}
 function pvOpen(no,chKey){
   const p=PROD.filter(x=>x.no===no)[0]; if(!p)return;
   pvCur={p,ch:chKey};
@@ -1410,9 +1426,31 @@ function pvOpen(no,chKey){
   const imgList=Array.isArray(img)?img.filter(Boolean):(img?[img]:[]);
   const isLive=chKey&&IFRAME_OK.has(chKey)&&u;
   const isInfoCard=chKey&&INFO_CARD.has(chKey)&&u;
-  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · "+(isLive?"실제 페이지 보기":isInfoCard?"상품 정보":"상세페이지");
+  const isOgCard=chKey&&OG_CARD.has(chKey)&&u;
+  $("#pvTitle").textContent=(p.abbr||p.name)+" · "+ci.n+" · "+(isLive?"실제 페이지 보기":(isInfoCard||isOgCard)?"상품 정보":"상세페이지");
   if(isLive){
     $("#pvBody").innerHTML='<iframe src="'+esc(u)+'" style="width:100%;height:78vh;border:0;border-radius:8px;background:#fff" loading="lazy" referrerpolicy="no-referrer" title="'+esc(ci.n)+' 실제 페이지"></iframe>';
+  } else if(isOgCard){
+    // 패널을 열 때마다 로컬 서버(preview-server.js)가 상품 페이지의 Open Graph 태그를 그 자리에서
+    // 읽어옵니다(저장된 데이터 아님). 서버가 꺼져있거나 실패하면 등록된 이름/가격/이미지로 대체합니다.
+    $("#pvBody").innerHTML=renderOgCardBody(ci.n,p.abbr||p.name,p.std,imgList[0]||"","⏳ 실시간으로 불러오는 중…");
+    const myReqId=(pvCur.reqId=(pvCur.reqId||0)+1);
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),8000);
+    fetch(LIVE_API_SERVER+"/og-preview?url="+encodeURIComponent(u),{signal:ctrl.signal})
+      .then(function(r){return r.ok?r.json():Promise.reject(new Error("HTTP "+r.status));})
+      .then(function(live){
+        clearTimeout(timer);
+        if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return;
+        $("#pvBody").innerHTML=renderOgCardBody(ci.n,live.title||(p.abbr||p.name),live.price||p.std,live.image||imgList[0]||"","🟢 방금 "+ci.n+"에서 실시간으로 불러왔어요");
+      })
+      .catch(function(err){
+        clearTimeout(timer);
+        if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return;
+        const note='⚠ 실시간 조회 실패 ('+(err.name==="AbortError"?"응답 지연":err.message)+') — 등록된 정보로 보여드려요'+
+          '<br><span style="font-size:11px">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 실시간 조회가 돼요.</span>';
+        $("#pvBody").innerHTML=renderOgCardBody(ci.n,p.abbr||p.name,p.std,imgList[0]||"",note);
+      });
   } else if(isInfoCard){
     // 구매/이동 목적이 아니라, 상품명·가격·상세 이미지가 제대로 올라갔는지 한눈에 확인하기 위한 용도.
     // 패널을 열 때마다 로컬 서버(preview-server.js)를 통해 그 자리에서 네이버 API를 호출합니다
@@ -1453,7 +1491,7 @@ function pvOpen(no,chKey){
         '<div class="noimg" style="width:100%;height:220px">상세페이지 이미지 없음</div>');
   }
   $("#pvFoot").innerHTML=
-    (isInfoCard?"":
+    ((isInfoCard||isOgCard)?"":
       (u?'<a class="btn pri" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(ci.n)+'에서 보기 ↗</a>':"")+
       (imgList.length?'<a class="btn" href="'+imgList[0]+'" target="_blank" rel="noopener noreferrer">원본 이미지 열기 ↗</a>':""))+
     '<button class="btn ghost" data-pvcopy="1">상품코드 복사</button>';
