@@ -1526,12 +1526,9 @@ function pvOpen(no,chKey){
         .catch(function(err){
           clearTimeout(timer);
           if(!pvCur||pvCur.p.no!==no||pvCur.reqId!==myReqId)return;
-          const note='⚠ 실시간 조회 실패 ('+(err.name==="AbortError"?"응답 지연":err.message)+') — '+
-            (synced?'마지막 동기화본을 보여드려요':'동기화된 정보도 없어요')+
-            '<br><span style="font-size:11px">이 PC에서 미리보기 서버(preview-server.js)가 켜져있어야 실시간 조회가 돼요.</span>';
           $("#pvBody").innerHTML=renderInfoCardBody(
             synced?synced.name:(p.abbr||p.name), synced?synced.price:p.std, synced?synced.freeShipping:null,
-            synced&&synced.images&&synced.images.length?synced.images:imgList, note
+            synced&&synced.images&&synced.images.length?synced.images:imgList, ""
           );
         });
     }
