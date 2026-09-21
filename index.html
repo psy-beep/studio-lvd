@@ -1708,13 +1708,14 @@ function renderDue(){
       '<b>'+Number(e.s.slice(5,7))+'/'+Number(e.s.slice(8))+'</b>'+(e.t?'<span>'+esc(e.t)+'</span>':'<span>시간 미지정</span>')+
       (e.w?'<span>'+esc(e.w)+'</span>':"")+'</div></div>'+badge+'</div>';}).join("");}
 function renderKpi3(){
-  const on=EVENTS.filter(evOn),t=today();
+  const mPrefix=Y+"-"+pad(M);
+  const on=EVENTS.filter(evOn).filter(e=>e.s.slice(0,7)<=mPrefix&&e.e.slice(0,7)>=mPrefix),t=today();
   const live=on.filter(e=>e.s<=t&&e.e>=t).length;
   const due=on.filter(e=>e.d).length;
   const dueLeft=on.filter(e=>e.d&&e.s>=t).length;
   const promo=on.filter(e=>e.c==="promo").length;
   $("#kpi3").innerHTML=[
-   {k:"8월 전체 일정",v:on.length,n:"7개 캘린더 합계",cls:"i"},
+   {k:M+"월 전체 일정",v:on.length,n:"7개 캘린더 합계",cls:"i"},
    {k:"오늘 진행",v:live,n:today().slice(5).replace("-","월 ")+"일",cls:"e"},
    {k:"마감 건",v:due,n:"남은 마감 "+dueLeft+"건",cls:dueLeft?"r":""},
    {k:"진행 행사",v:promo,n:"프로모션 캘린더",cls:"a"}
