@@ -694,7 +694,7 @@ kbd{font:600 12px/1.4 ui-monospace,Menlo,monospace;background:var(--chip);border
     <div class="nav-label">4대 통합 파이프라인</div>
     <button data-tab="t1" aria-current="true"><span class="n">1</span><span class="tx"><b>상품 &amp; 채널 통합 관리</b><span>마스터 · 등록 · 노출상태</span></span></button>
     <button data-tab="t2" aria-current="false"><span class="n">2</span><span class="tx"><b>가격 &amp; 프로모션 모니터링</b><span>행사 · 정상가 원복</span></span></button>
-    <button data-tab="t3" aria-current="false"><span class="n">3</span><span class="tx"><b>8월 업무 캘린더</b><span>구글 캘린더 · 전 팀 일정</span></span></button>
+    <button data-tab="t3" aria-current="false"><span class="n">3</span><span class="tx"><b>업무 캘린더</b><span>구글 캘린더 · 전 팀 일정</span></span></button>
     <button data-tab="t4" aria-current="false"><span class="n">4</span><span class="tx"><b>리뷰 · VOC · AI 자동화</b><span>답글 초안 · 부서 전달</span></span><span class="navpip" id="navPip4" hidden>0</span></button>
     <button data-tab="t5" aria-current="false"><span class="n">5</span><span class="tx"><b>상세페이지 업로드 방법</b><span>채널별 등록 절차</span></span></button>
   </nav>
@@ -808,7 +808,11 @@ kbd{font:600 12px/1.4 ui-monospace,Menlo,monospace;background:var(--chip);border
 
   <div class="card" style="margin-bottom:16px">
     <div class="card-h">
-      <h3>2026년 8월</h3><span class="sub">구글 캘린더에서 가져온 전 팀 일정</span>
+      <button class="btn sm ghost" id="calPrev" type="button" aria-label="이전 달">‹</button>
+      <h3 id="calTitle" style="min-width:110px;text-align:center">2026년 8월</h3>
+      <button class="btn sm ghost" id="calNext" type="button" aria-label="다음 달">›</button>
+      <button class="btn sm ghost" id="calToday" type="button">이번 달</button>
+      <span class="sub">구글 캘린더에서 가져온 전 팀 일정</span>
       <span class="sp"></span>
       <div class="legend" id="calFilter"></div>
       <a class="btn sm" id="calOpen" href="#" target="_blank" rel="noopener noreferrer">구글 캘린더 열기 ↗</a>
@@ -1035,7 +1039,7 @@ kbd{font:600 12px/1.4 ui-monospace,Menlo,monospace;background:var(--chip);border
 const TABS={
  t1:{t:"상품 & 채널 통합 관리",s:"신규 SKU 발생 → 마스터 등록 → 상세·썸네일 수급 → 채널 입점·승인 → 전 채널 상태 동기화"},
  t2:{t:"가격 & 프로모션 모니터링",s:"경쟁사·시장 확인 → 외부 MD 구좌 협의 → 할인율·쿠폰 세팅 → 오픈 전 최종 검수 → 종료 후 정상가 원복"},
- t3:{t:"8월 업무 캘린더",s:"구글 캘린더 전 팀 일정 · 2026년 8월 · 마감 · 행사 · 입고 · 미팅 · 휴가"},
+ t3:{t:"업무 캘린더",s:"구글 캘린더 전 팀 일정 · 마감 · 행사 · 입고 · 미팅 · 휴가"},
  t4:{t:"리뷰 · VOC · AI 자동화",s:"리뷰 수집 → AI 답글 vs 저평점 분류 → CS·배송 이슈 구분 → 반복 불만 원인 도출 → 상품기획팀 피드백"},
  t5:{t:"채널별 상세페이지 업로드 방법",s:"채널마다 상세 이미지를 받는 방식이 다릅니다 · 지마켓(ESM PLUS) · 스마트스토어 · 11번가"}
 };
@@ -1630,11 +1634,20 @@ function renderPriceChk(){
     '<td class="r num" style="color:var(--rose);font-weight:700">'+(r.diff>0?"+":"")+won(r.diff)+'</td>'+
     '<td><span class="tag r">'+(r.diff>0?"정상가보다 높음":"정상가보다 낮음")+'</span></td></tr>').join("");}
 
-/* ══════ 탭 3 : 8월 캘린더 ══════ */
+/* ══════ 탭 3 : 업무 캘린더 ══════ */
 const CMAP={};CALS.forEach(c=>CMAP[c.k]=c);
-const Y=2026,M=8,DIM=31,FIRST=6; /* 2026-08-01 = 토요일 */
+const _now=new Date();
+let Y=_now.getFullYear(),M=_now.getMonth()+1,DIM=new Date(Y,M,0).getDate(),FIRST=new Date(Y,M-1,1).getDay();
 const dstr=d=>Y+"-"+pad(M)+"-"+pad(d);
 let selDay=null;
+function setMonth(y,m){
+  while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+  Y=y;M=m;DIM=new Date(Y,M,0).getDate();FIRST=new Date(Y,M-1,1).getDay();
+  selDay=(today().slice(0,7)===Y+"-"+pad(M))?today():null;
+  renderCal();renderDay();renderDue();renderKpi3();}
+$("#calPrev").addEventListener("click",()=>setMonth(Y,M-1));
+$("#calNext").addEventListener("click",()=>setMonth(Y,M+1));
+$("#calToday").addEventListener("click",()=>setMonth(_now.getFullYear(),_now.getMonth()+1));
 const evOn=e=>!S.calOff[e.c];
 function evsFor(ds){return EVENTS.filter(e=>evOn(e)&&e.s<=ds&&e.e>=ds);}
 $("#calOpen").href=CAL_SRC;
@@ -1648,6 +1661,7 @@ function renderCalHead(){
   $("#calHead").innerHTML=["일","월","화","수","목","금","토"]
     .map((d,i)=>'<span class="'+(i===0?"sun":i===6?"sat":"")+'">'+d+'</span>').join("");}
 function renderCal(){
+  $("#calTitle").textContent=Y+"년 "+M+"월";
   let h="";
   for(let i=0;i<FIRST;i++)h+='<div class="d out"></div>';
   for(let d=1;d<=DIM;d++){
@@ -1671,7 +1685,7 @@ function renderDay(){
   if(!selDay){$("#dayTitle").textContent="날짜를 선택하세요";$("#daySub").textContent="";
     $("#dayBox").innerHTML='<div class="empty">달력에서 날짜를 클릭하면 그날 일정이 여기에 나옵니다.</div>';return;}
   const d=Number(selDay.slice(8)),dow="일월화수목금토"[(FIRST+d-1)%7],evs=evsFor(selDay);
-  $("#dayTitle").textContent="8월 "+d+"일 ("+dow+")";
+  $("#dayTitle").textContent=M+"월 "+d+"일 ("+dow+")";
   $("#daySub").textContent=evs.length?evs.length+"건":"일정 없음";
   if(!evs.length){$("#dayBox").innerHTML='<div class="empty">이 날짜에는 일정이 없습니다.</div>';return;}
   $("#dayBox").innerHTML=evs.map(e=>{const c=CMAP[e.c];
@@ -1691,7 +1705,7 @@ function renderDue(){
       dd<=3?'<span class="tag a">D-'+dd+'</span>':'<span class="tag">D-'+dd+'</span>';
     return '<div class="dv"><span class="cbar" style="background:'+c.c+'"></span><div style="flex:1;min-width:0">'+
       '<div class="t">'+esc(e.title)+'</div><div class="m">'+
-      '<b>8/'+Number(e.s.slice(8))+'</b>'+(e.t?'<span>'+esc(e.t)+'</span>':'<span>시간 미지정</span>')+
+      '<b>'+Number(e.s.slice(5,7))+'/'+Number(e.s.slice(8))+'</b>'+(e.t?'<span>'+esc(e.t)+'</span>':'<span>시간 미지정</span>')+
       (e.w?'<span>'+esc(e.w)+'</span>':"")+'</div></div>'+badge+'</div>';}).join("");}
 function renderKpi3(){
   const on=EVENTS.filter(evOn),t=today();
@@ -1862,7 +1876,7 @@ $("#rSku").innerHTML=PROD.map(p=>'<option value="'+esc(p.no)+'">'+esc(p.abbr?p.a
 renderKpi1();renderT1();renderArch();
 renderKpi2();renderPromos();renderPriceChk();
 renderCalFilter();renderCalHead();renderCal();renderDay();renderDue();renderKpi3();
-if(today().slice(0,7)==="2026-08"){selDay=today();renderCal();renderDay();}
+selDay=today();renderCal();renderDay();
 renderKpi4();updateVerdict();renderQueue();renderVoc();renderRv();renderChRev();renderNavPip();
 })();
 </script>
