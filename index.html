@@ -1869,7 +1869,7 @@ function renderChRev(){
 
 /* ══════ 초기화 ══════ */
 $("#f1cat").innerHTML='<option value="">전체</option>'+PROD.map(p=>p.cat).filter((v,i,a)=>a.indexOf(v)===i).map(c=>'<option>'+esc(c)+'</option>').join("");
-$("#rCh").innerHTML=CHN.map(c=>'<option value="'+esc(c.n)+'">'+esc(c.n)+'</option>').join("");
+$("#rCh").innerHTML=CHN.filter(c=>c.n==="스마트스토어"||c.n==="지그재그").map(c=>'<option value="'+esc(c.n)+'">'+esc(c.n)+'</option>').join("");
 $("#rSku").innerHTML=PROD.map(p=>'<option value="'+esc(p.no)+'">'+esc(p.abbr?p.abbr+" · ":"")+esc(p.name)+'</option>').join("");
 renderKpi1();renderT1();renderArch();
 renderKpi2();renderPromos();renderPriceChk();
