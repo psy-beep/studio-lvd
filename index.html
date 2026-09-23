@@ -1383,7 +1383,10 @@ $("#expCsv").addEventListener("click",()=>{
 let pvCur=null;
 function srcInfo(p){return (typeof SRCHTML!=="undefined"&&SRCHTML[p.no])||null;}
 function detHtml(p){const s=srcInfo(p);return s?s.html:"";}
+const MIRRORS_MASTER=new Set(["W컨셉","직잭","에이블리"]);
+// 이 3개 채널은 확인 결과 예외없이 자사몰(카페24) 이미지 주소를 그대로 embed함 -> 스냅샷 저장 없이 항상 p.img를 실시간으로 보여줌
 function pvImg(p,chKey){
+  if(chKey&&MIRRORS_MASTER.has(chKey)&&p.img)return p.img;
   const specific=(typeof CHIMG!=="undefined"&&chKey)?CHIMG[p.no+"|"+chKey]:null;
   if(specific)return specific;
   return (typeof DETIMG!=="undefined"&&DETIMG[p.no])||"";}
